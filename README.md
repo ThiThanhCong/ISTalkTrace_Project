@@ -2,13 +2,13 @@
 
 This project explores a hybrid approach for speaker identification by integrating feature extraction methods (MFCC, Wavelet, XVector, DVector) with classical and quantum machine learning models such as HMM, RNN, and Quantum Convolutional Neural Networks (QCNN).
 
-## 📌 Overview
+## Overview
 
 In the era of virtual communication, the demand for intelligent audio analysis is rapidly growing. This work focuses on improving **speech extraction** and **speaker identification** through machine learning and quantum deep learning techniques.
 
 Our best-performing model — a hybrid **QCNN + HMM + DVector** architecture — achieved **97% accuracy** and **95% F1-score** across 3-fold cross-validation.
 
-## 🧠 Techniques Used
+## Techniques Used
 
 - Feature Extraction:
   - Mel-Frequency Cepstral Coefficients (MFCC)
@@ -20,7 +20,7 @@ Our best-performing model — a hybrid **QCNN + HMM + DVector** architecture —
   - Quantum Convolutional Neural Networks (QCNN)
 - Hybrid: QCNN combined with HMM for enhanced temporal modeling
 
-## 📊 Dataset
+## Dataset
 
 | Statistic                     | Value           |
 |------------------------------|-----------------|
@@ -32,7 +32,7 @@ Our best-performing model — a hybrid **QCNN + HMM + DVector** architecture —
 | Average dialogue length      | 6.19 seconds    |
 | Std. deviation of length     | 11.96 seconds   |
 
-## 🧪 Experimental Results
+## Experimental Results
 
 > **Table: Accuracy, Precision, Recall, and F1-Score Across 3 Folds**
 
@@ -51,13 +51,13 @@ Our best-performing model — a hybrid **QCNN + HMM + DVector** architecture —
 | **F1 Fold 2**        | 0.66     | 0.63     | 0.14        | 0.05     | 0.59      | 0.30      | 0.14         | 0.74      | 0.05        | 0.04           | 0.00       | 0.08        | 0.85             | 0.17               | 0.92           | **0.94**             |
 | **F1 Fold 3**        | 0.66     | 0.57     | 0.13        | 0.05     | 0.57      | 0.37      | 0.15         | 0.75      | 0.30        | 0.03           | 0.00       | 0.09        | 0.86             | 0.19               | 0.94           | **0.95**             |
 
-## 🔍 Key Findings
+## Key Findings
 
 - **DVector** features combined with **QCNN + HMM** yielded the best performance.
 - **Wavelet + HMM** was the weakest performer.
 - **RNN-DVec** also showed strong results but was outperformed by the hybrid quantum model.
 
-## 🛠 Tools & Frameworks
+## Tools & Frameworks
 
 - Python
 - [SpeechBrain](https://speechbrain.readthedocs.io/)
@@ -65,19 +65,19 @@ Our best-performing model — a hybrid **QCNN + HMM + DVector** architecture —
 - PyTorch
 - Scikit-learn
 
-## 📈 Future Work
+## Future Work
 
 - Expand to noisy environments
 - Add multilingual and emotion-aware capabilities
 - Real-time deployment for smart assistants or security systems
 
-## 🤝 Acknowledgments
+## Acknowledgments
 
 This research was supported by the VNUHCM–University of Information Technology’s Scientific Research Support Fund.
 
 ---
 
-## 📄 Citation
+## Citation
 
 If you use this work, please cite our paper:
 
