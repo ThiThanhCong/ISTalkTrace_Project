@@ -30,7 +30,6 @@ class SpeakerIdentification:
         else:
             print("GPU not available, using CPU instead.")
         
-        # MFCC parameters
         self.n_mfcc = 20
         self.n_fft = 2048
         self.hop_length = 512
@@ -58,19 +57,17 @@ class SpeakerIdentification:
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
         
         self.qcnn = qcnn
-        self.weights = np.random.randn(n_qubits * 2 + 1)  # Adjusted weight size for the model
+        self.weights = np.random.randn(n_qubits * 2 + 1)  
 
     def extract_mfcc(self, audio_path, start_time, end_time):
         """Extract MFCC features from audio segment"""
         try:
-            # Load audio segment
-            y, sr = librosa.load(audio_path, sr=16000)  # Load at 16kHz
+            y, sr = librosa.load(audio_path, sr=16000)  
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
             
             audio_segment = y[start_sample:end_sample]
             
-            # Extract MFCCs
             mfccs = librosa.feature.mfcc(
                 y=audio_segment, 
                 sr=sr, 
@@ -79,40 +76,33 @@ class SpeakerIdentification:
                 hop_length=self.hop_length
             )
             
-            # Calculate statistics over time to get fixed-length features
             mfcc_mean = np.mean(mfccs, axis=1)
             mfcc_std = np.std(mfccs, axis=1)
             
-            # Combine mean and std for a more comprehensive feature vector
             mfcc_features = np.concatenate([mfcc_mean, mfcc_std])
             
             return mfcc_features
         except Exception as e:
             print(f"Error extracting MFCC: {e}")
-            # Return empty array if extraction fails
             return np.array([])
 
     def process_qcnn(self, mfcc_features):
         """Process MFCC features through QCNN"""
         quantum_features = []
         
-        # Ensure we have enough features for n_qubits
         if len(mfcc_features) < self.n_qubits:
             mfcc_features = np.pad(mfcc_features, (0, self.n_qubits - len(mfcc_features)))
         
-        # Use first n_qubits features for quantum circuit
         input_features = mfcc_features[:self.n_qubits]
         
-        # Scale features to appropriate range for quantum circuit
         input_features = np.clip(input_features, -np.pi, np.pi)
         
         q_output = random_qcircuit(input_features, self.n_qubits)
         quantum_features.append(q_output)
         
-        # Combine classical and quantum features
         combined_features = np.concatenate([
-            mfcc_features,  # Original MFCC features
-            np.array(quantum_features).flatten()  # Quantum transformed features
+            mfcc_features,  
+            np.array(quantum_features).flatten()  
         ])
         
         return combined_features.reshape(1, -1)
@@ -125,7 +115,7 @@ class SpeakerIdentification:
         
         for line in lines:
             parts = line.strip().split()
-            if len(parts) >= 3:  # Ensure we have at least start time, end time, and speaker
+            if len(parts) >= 3:  
                 start_time = self.time_to_seconds(parts[0])
                 end_time = self.time_to_seconds(parts[1])
                 speaker = parts[2]
@@ -154,11 +144,9 @@ class SpeakerIdentification:
             
             for audio_path, start, end in segments:
                 
-                # Extract MFCC features
                 mfcc_features = self.extract_mfcc(audio_path, start, end)
                 
                 if len(mfcc_features) > 0:
-                    # Process through QCNN
                     q_features = self.process_qcnn(mfcc_features)
                     if q_features.shape[0] > 0:
                         all_features.append(q_features)
@@ -207,7 +195,6 @@ class SpeakerIdentification:
         
         if len(mfcc_features) == 0:
             print(f"⚠️ Failed to extract MFCC features from {test_audio_path} at {start_time}-{end_time}")
-            # Return default prediction if extraction fails
             return list(self.hmm_models.keys())[0] if self.hmm_models else "unknown", {}
         
         test_features = self.process_qcnn(mfcc_features)

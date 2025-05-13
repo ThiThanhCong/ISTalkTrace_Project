@@ -31,11 +31,10 @@ print(f"Using device: {device}")
 dev = qml.device("lightning.gpu", wires=N_QUBITS)
 @qml.qnode(dev, interface="torch", diff_method="best")
 def quantum_circuit(inputs, weights):
-    # Đảm bảo inputs có kích thước đúng
     assert inputs.shape[1] == N_QUBITS, f"Expected input shape (batch_size, {N_QUBITS}), got {inputs.shape}"
 
     for i in range(N_QUBITS):
-        qml.RY(inputs[:, i], wires=i)  # Chạy qua tất cả các batch
+        qml.RY(inputs[:, i], wires=i)  
 
     for l in range(N_LAYERS):
         for i in range(N_QUBITS):
@@ -357,7 +356,7 @@ def train_speaker_recognition_system():
             for batch_idx, (batch_features, batch_labels) in enumerate(train_loader):
                 batch_features = batch_features.to(device)
                 batch_labels = batch_labels.to(device)
-                if batch_features.size(0) == 1:  # If batch size is 1
+                if batch_features.size(0) == 1:  
                     print("Batch size 1")
                     continue
 

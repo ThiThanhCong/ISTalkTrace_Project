@@ -70,7 +70,7 @@ class CNNFeatureExtractor(nn.Module):
         self.dense = nn.Linear(128, N_QUBITS)
         
     def forward(self, x):
-        x = x.unsqueeze(1)  # Add channel dimension
+        x = x.unsqueeze(1)  
         x = F.relu(self.bn1(self.conv1(x)))
         x = self.pool1(x)
         x = F.relu(self.bn2(self.conv2(x)))
@@ -78,7 +78,7 @@ class CNNFeatureExtractor(nn.Module):
         x = F.relu(self.bn3(self.conv3(x)))
         x = self.global_pool(x)
         x = x.squeeze(-1)
-        x = self.dense(x)  # This should output a tensor of size N_QUBITS
+        x = self.dense(x)  
         return x
 
 class QuantumNeuralNetwork(nn.Module):
@@ -90,28 +90,22 @@ class QuantumNeuralNetwork(nn.Module):
         self.qlayer = qml.qnn.TorchLayer(quantum_circuit, weight_shapes)
     
     def forward(self, x):
-        # Make sure x has the right shape for the quantum circuit
         batch_size = x.shape[0]
         results = []
         
-        # Process each sample in the batch individually
         for i in range(batch_size):
-            # Get a single input vector
             x_i = x[i]
-            # Ensure it has the right dimension (N_QUBITS)
-            if x_i.dim() == 0:  # If it's a scalar
+            if x_i.dim() == 0:  
                 x_i = x_i.unsqueeze(0).repeat(N_QUBITS)
-            elif x_i.size(0) < N_QUBITS:  # If it has fewer elements than needed
+            elif x_i.size(0) < N_QUBITS:  
                 padding = torch.zeros(N_QUBITS - x_i.size(0), device=x_i.device)
                 x_i = torch.cat([x_i, padding])
-            elif x_i.size(0) > N_QUBITS:  # If it has more elements than needed
+            elif x_i.size(0) > N_QUBITS:  
                 x_i = x_i[:N_QUBITS]
             
-            # Apply quantum layer to this sample
             result = self.qlayer(x_i)
             results.append(result)
         
-        # Stack results back into a batch
         return torch.stack(results)
 
 class QCNNHybrid(nn.Module):
@@ -238,20 +232,16 @@ def evaluate_model(model, test_loader, label_encoder, device):
     all_labels = label_encoder.inverse_transform(all_labels)
     all_preds = label_encoder.inverse_transform(all_preds)
     
-    # Macro
     precision_macro = precision_score(all_labels, all_preds, average='macro')
     recall_macro = recall_score(all_labels, all_preds, average='macro')
     f1_macro = f1_score(all_labels, all_preds, average='macro')
 
-    # Weighted
     precision_weighted = precision_score(all_labels, all_preds, average='weighted')
     recall_weighted = recall_score(all_labels, all_preds, average='weighted')
     f1_weighted = f1_score(all_labels, all_preds, average='weighted')
 
-    # Accuracy
     accuracy = accuracy_score(all_labels, all_preds)
 
-    # Logging
     logging.info(f"Precision (Macro): {precision_macro:.2f}")
     logging.info(f"Recall (Macro): {recall_macro:.2f}")
     logging.info(f"F1-Score (Macro): {f1_macro:.2f}")
@@ -269,24 +259,7 @@ def evaluate_model(model, test_loader, label_encoder, device):
         'Value': [precision_macro, recall_macro, f1_macro, f1_weighted, accuracy]
     })
 
-    # report = classification_report(
-    #     all_labels,
-    #     all_preds,
-    #     labels=label_encoder.transform(label_encoder.classes_),
-    #     target_names=label_encoder.classes_,
-    #     zero_division=0
-    # )
     
-    # cm = confusion_matrix(all_labels, all_preds)
-    # plt.figure(figsize=(10, 8))
-    # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-    #             xticklabels=label_encoder.classes_,
-    #             yticklabels=label_encoder.classes_)
-    # plt.xlabel('Predicted')
-    # plt.ylabel('True')
-    # plt.title('Confusion Matrix')
-    # plt.savefig('qcnn_confusion_matrix.png')
-    # plt.close()
     
     return metrics_df, accuracy
 
@@ -349,11 +322,9 @@ def train_speaker_recognition_with_cv(root_dir, n_folds=3, min_segments=3):
     n_classes = len(label_encoder.classes_)
     print(f"Found {n_classes} speaker classes: {label_encoder.classes_}")
     
-    # Calculate class weights ensuring we have weights for all classes
     unique_classes = np.unique(encoded_labels)
     class_weights = compute_class_weight('balanced', classes=unique_classes, y=encoded_labels)
     
-    # Verify we have weights for all classes
     assert len(class_weights) == n_classes, \
         f"Class weights length ({len(class_weights)}) doesn't match number of classes ({n_classes})"
     
@@ -384,11 +355,9 @@ def train_speaker_recognition_with_cv(root_dir, n_folds=3, min_segments=3):
         X_train, X_test = features[train_idx], features[test_idx]
         y_train, y_test = encoded_labels[train_idx], encoded_labels[test_idx]
         
-        # Recompute class weights for this specific fold's training data
         fold_unique_classes = np.unique(y_train)
         fold_class_weights = compute_class_weight('balanced', classes=fold_unique_classes, y=y_train)
         
-        # Create a full weight vector for all classes
         full_weights = np.ones(n_classes)
         for cls, weight in zip(fold_unique_classes, fold_class_weights):
             full_weights[cls] = weight
