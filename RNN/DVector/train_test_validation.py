@@ -10,11 +10,9 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 from speechbrain.inference.speaker import SpeakerRecognition
 
-# Reproducibility
 torch.manual_seed(42)
 np.random.seed(42)
 
-# Load speaker embedding model
 spk_model = SpeakerRecognition.from_hparams(
     source="speechbrain/spkrec-ecapa-voxceleb",
     savedir="speechbrain_models/spkrec-ecapa-voxceleb"
@@ -57,7 +55,7 @@ def extract_dvectors(audio_path, segments, speakers):
         start_sample = int(start * sample_rate)
         end_sample = int(end * sample_rate)
 
-        if end_sample > waveform.shape[1]:  # Prevent overflow
+        if end_sample > waveform.shape[1]:
             end_sample = waveform.shape[1]
 
         if end_sample <= start_sample:
@@ -132,7 +130,6 @@ def cross_validate_multiclass(dvectors, labels, num_folds=5, num_epochs=20):
     print(classification_report(all_true_labels, all_pred_labels, zero_division=0))
 
 
-# === Load all data ===
 root_folder = "train_voice"
 all_dvectors = []
 all_labels = []
@@ -151,5 +148,4 @@ for subfolder in os.listdir(root_folder):
         all_dvectors.extend(dvectors)
         all_labels.extend(labels)
 
-# === Cross-validate multi-class speaker model ===
 cross_validate_multiclass(all_dvectors, all_labels)

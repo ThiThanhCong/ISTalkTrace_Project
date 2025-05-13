@@ -16,7 +16,6 @@ BATCH_SIZE = 32
 EPOCHS = 20
 
 
-# ==== Dataset and Model ====
 class XvectorDataset(Dataset):
     def __init__(self, xvectors, labels, label_to_idx):
         self.xvectors = xvectors
@@ -28,18 +27,15 @@ class XvectorDataset(Dataset):
 
     def __getitem__(self, idx):
         x = torch.tensor(self.xvectors[idx], dtype=torch.float32)
-        # Ensure x is a flat vector
         if x.dim() > 1:
             x = torch.mean(x, dim=0) if x.size(0) > 1 else x.reshape(-1)
         y = torch.tensor(self.label_to_idx[self.labels[idx]], dtype=torch.long)
         return x, y
 
 def custom_collate(batch):
-    """Custom collate function to handle tensors of different shapes."""
     xs = []
     ys = []
     for x, y in batch:
-        # Ensure x is flat and consistent
         if x.dim() > 1:
             x = torch.mean(x, dim=0) if x.size(0) > 1 else x.reshape(-1)
         xs.append(x)
@@ -61,7 +57,6 @@ class RNNClassifier(nn.Module):
         return out
 
 
-# ==== Utils ====
 def time_to_seconds(timestamp):
     h, m, s = map(int, timestamp.split(":"))
     return h * 3600 + m * 60 + s
@@ -101,11 +96,10 @@ def extract_xvectors(audio_path, segments, speakers, classifier):
         xvector_dict[speaker].append(embedding)
     return xvector_dict
 
-# ==== Training Logic ====
+
 def train_rnn_model(X, y, label_to_idx, input_size):
     num_classes = len(label_to_idx)
 
-    # Preprocess to ensure consistent shapes
     standardized_X = []
     for x in X:
         if x.ndim == 2:
@@ -119,7 +113,6 @@ def train_rnn_model(X, y, label_to_idx, input_size):
     dataset = XvectorDataset(standardized_X, y, label_to_idx)
     train_loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=custom_collate)
 
-    # Update input size to match the standardized vectors
     if standardized_X[0].ndim == 1:
         input_size = standardized_X[0].shape[0]
     else:
@@ -163,7 +156,6 @@ def evaluate_model(model, X_test, y_test, label_to_idx):
     print(f"🎯 Accuracy: {accuracy_score(true, preds):.4f}")
 
 
-# ==== Main Pipeline ====
 def run_rnn_pipeline():
     classifier = EncoderClassifier.from_hparams(
         source="speechbrain/spkrec-xvect-voxceleb",
@@ -208,7 +200,6 @@ def run_rnn_pipeline():
         model = train_rnn_model(X_train, y_train, label_to_idx, input_size)
         evaluate_model(model, X_test, y_test, label_to_idx)
 
-        # Calculate accuracy manually
         model.eval()
         preds, true = [], []
         with torch.no_grad():

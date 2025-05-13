@@ -1,14 +1,19 @@
 import os
 
-import librosa
 import numpy as np
+import torch
 import torchaudio
 from hmmlearn import hmm
 from sklearn.metrics import classification_report, accuracy_score
 from sklearn.model_selection import StratifiedKFold
+from speechbrain.inference.speaker import SpeakerRecognition
+
+spk_model = SpeakerRecognition.from_hparams(
+    source="speechbrain/spkrec-ecapa-voxceleb",
+    savedir="speechbrain_models/spkrec-ecapa-voxceleb"
+)
 
 N_SPLITS = 3
-N_MFCC = 13
 
 def time_to_seconds(timestamp):
     h, m, s = map(int, timestamp.split(":"))
@@ -19,63 +24,50 @@ def load_script(script_path):
     with open(script_path, "r", encoding="utf-8") as file:
         for line in file:
             parts = line.strip().split()
-            if len(parts) != 3:
+            if len(parts) < 3:
                 continue
-            start, end, speaker = parts
+            start, end, speaker = parts[:3]
             segments.append((time_to_seconds(start), time_to_seconds(end)))
             speakers.append(speaker)
     return segments, speakers
 
-def extract_mfcc_features(audio_path, segments, speakers, n_mfcc=N_MFCC):
+def extract_dvectors(audio_path, segments, speakers):
     waveform, sample_rate = torchaudio.load(audio_path)
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0)
-    waveform = waveform.numpy().squeeze()
-
-    feature_list = []
-
+    features = []
     for (start, end), speaker in zip(segments, speakers):
         start_sample = int(start * sample_rate)
         end_sample = int(end * sample_rate)
-        segment_waveform = waveform[start_sample:end_sample]
-
-        if len(segment_waveform) < 400:
+        segment_waveform = waveform[:, start_sample:end_sample]
+        if segment_waveform.shape[1] < 1600:
             continue
+        with torch.no_grad():
+            embedding = spk_model.encode_batch(segment_waveform).squeeze().numpy()
+        features.append((embedding, speaker))
+    return features
 
-        mfcc = librosa.feature.mfcc(y=segment_waveform, sr=sample_rate, n_mfcc=n_mfcc)
-        mfcc = mfcc.T  # shape: (n_frames, n_mfcc)
-        feature_list.append((mfcc, speaker))
-
-    return feature_list
-
-def train_hmm(sequences):
-    X = np.vstack(sequences)
-    lengths = [len(seq) for seq in sequences]
-
+def train_hmm(features):
+    X = np.vstack(features)
     mean, std = np.mean(X, axis=0), np.std(X, axis=0)
     std[std < 1e-10] = 1.0
-    X_norm = (X - mean) / std
-
-    model = hmm.GaussianHMM(n_components=5, covariance_type="diag", n_iter=100)
-    model.fit(X_norm, lengths)
-
+    X = (X - mean) / std
+    model = hmm.GaussianHMM(n_components=min(3, len(X)), covariance_type="diag", n_iter=100)
+    model.fit(X)
     return model, mean, std
 
-def predict_segment(mfcc, models):
-    best_speaker, best_score = None, float("-inf")
+def predict_segment(feature, models):
+    scores = {}
     for speaker, (model, mean, std) in models.items():
+        norm_feat = (feature - mean) / std
         try:
-            norm = (mfcc - mean) / std
-            score = model.score(norm)
-            if score > best_score:
-                best_speaker, best_score = speaker, score
-        except Exception:
-            continue
-    return best_speaker
+            score = model.score([norm_feat])
+            scores[speaker] = score
+        except:
+            scores[speaker] = -np.inf
+    return max(scores, key=scores.get)
 
-def cross_validate(features_with_labels, n_splits=N_SPLITS):
-    X = [feat for feat, label in features_with_labels]
-    y = [label for feat, label in features_with_labels]
+def cross_validate(all_features, n_splits=N_SPLITS):
+    X = np.array([feat for feat, label in all_features])
+    y = np.array([label for feat, label in all_features])
 
     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
@@ -86,14 +78,17 @@ def cross_validate(features_with_labels, n_splits=N_SPLITS):
         train_data = [(X[i], y[i]) for i in train_idx]
         test_data = [(X[i], y[i]) for i in test_idx]
 
-        speaker_sequences = {}
+        speaker_feats = {}
         for feat, label in train_data:
-            speaker_sequences.setdefault(label, []).append(feat)
+            speaker_feats.setdefault(label, []).append(feat)
 
         models = {}
-        for speaker, sequences in speaker_sequences.items():
-            model, mean, std = train_hmm(sequences)
-            models[speaker] = (model, mean, std)
+        for speaker, feats in speaker_feats.items():
+            try:
+                model, mean, std = train_hmm(feats)
+                models[speaker] = (model, mean, std)
+            except Exception as e:
+                print(f"❌ Error training HMM for {speaker}: {e}")
 
         y_true, y_pred = [], []
         for feat, label in test_data:
@@ -115,16 +110,20 @@ if __name__ == "__main__":
     train_root = "train_voice"
 
     for folder in os.listdir(train_root):
-        subfolder = os.path.join(train_root, folder)
-        audio_file = os.path.join(subfolder, "raw.WAV")
-        script_file = os.path.join(subfolder, "script.txt")
-
-        if not os.path.exists(audio_file) or not os.path.exists(script_file):
+        folder_path = os.path.join(train_root, folder)
+        if not os.path.isdir(folder_path):
             continue
 
-        print(f"🎙️ Processing {subfolder}")
-        segments, speakers = load_script(script_file)
-        features = extract_mfcc_features(audio_file, segments, speakers)
+        audio_path = next((os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith('.wav')), None)
+        script_path = next((os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith('.txt')), None)
+
+        if not audio_path or not script_path:
+            print(f"❌ Thiếu file .wav hoặc .txt trong {folder_path}")
+            continue
+
+        segments, speakers = load_script(script_path)
+        print(f"🎙️ Processing {folder_path}")
+        features = extract_dvectors(audio_path, segments, speakers)
         all_features.extend(features)
 
     if len(all_features) >= N_SPLITS:

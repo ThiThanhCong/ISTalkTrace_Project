@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchaudio
+from sklearn.metrics import classification_report
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -60,6 +61,7 @@ def time_to_seconds(timestamp):
     h, m, s = map(int, timestamp.split(':'))
     return h * 3600 + m * 60 + s
 
+
 def load_script(script_path):
     segments, speakers = [], []
     with open(script_path, "r", encoding="utf-8") as file:
@@ -88,7 +90,7 @@ def load_all_data(data_folder):
     return all_features, all_labels
 
 
-def train_rnn(train_features, train_labels, num_epochs=50, lr=0.001, hidden_size=64):
+def train_rnn(train_features, train_labels, num_epochs=20, lr=0.001, hidden_size=64):
     speakers = list(set(train_labels))
     speaker_to_idx = {s: i for i, s in enumerate(speakers)}
     labels = [speaker_to_idx[s] for s in train_labels]
@@ -103,6 +105,7 @@ def train_rnn(train_features, train_labels, num_epochs=50, lr=0.001, hidden_size
 
     for epoch in range(num_epochs):
         total_loss = 0
+        model.train()
         for inputs, targets in dataloader:
             inputs = inputs.unsqueeze(1)
             optimizer.zero_grad()
@@ -112,17 +115,55 @@ def train_rnn(train_features, train_labels, num_epochs=50, lr=0.001, hidden_size
             optimizer.step()
             total_loss += loss.item()
 
-        print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {total_loss:.4f}")
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss/len(dataloader)}")
 
-    os.makedirs("rnn_wavelet_models", exist_ok=True)
-    torch.save(model.state_dict(), "rnn_wavelet_models/model.pth")
-    torch.save(speaker_to_idx, "rnn_wavelet_models/speaker_to_idx.pth")
     return model, speaker_to_idx
-    return model, speaker_to_idx
+
+from sklearn.model_selection import StratifiedKFold
+
+def cross_validate(features, labels, num_splits=5):
+    speakers = list(set(labels))
+    speaker_to_idx = {s: i for i, s in enumerate(speakers)}
+    labels_idx = [speaker_to_idx[label] for label in labels]
+
+    skf = StratifiedKFold(n_splits=num_splits, shuffle=True, random_state=42)
+
+    fold = 1
+    for train_idx, val_idx in skf.split(features, labels_idx):
+        print(f"\n🔁 Fold {fold}/{num_splits}")
+
+        train_features = np.array(features)[train_idx]
+        val_features = np.array(features)[val_idx]
+        train_labels = np.array(labels)[train_idx]
+        val_labels = np.array(labels)[val_idx]
+
+        train_labels_idx = [speaker_to_idx[s] for s in train_labels]
+
+        model, _ = train_rnn(train_features, train_labels_idx)
+
+        y_true = [speaker_to_idx[s] for s in val_labels]
+        y_pred = []
+
+        for inputs in val_features:
+            inputs = torch.tensor(inputs, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+            outputs = model(inputs)
+            _, predicted = torch.max(outputs, 1)
+            y_pred.append(predicted.item())
+
+        idx_to_speaker = {i: s for s, i in speaker_to_idx.items()}
+        y_true_names = [idx_to_speaker[i] for i in y_true]
+        y_pred_names = [idx_to_speaker[i] for i in y_pred]
+
+        print(f"📊 Fold {fold} Classification Report:")
+        print(classification_report(y_true_names, y_pred_names, zero_division=0))
+
+        fold += 1
+
 
 data_folder = "train_voice"
 features, labels = load_all_data(data_folder)
+
 if features and labels:
-    model, speaker_to_idx = train_rnn(features, labels)
+    cross_validate(features, labels)
 else:
-    print("Không có dữ liệu hợp lệ để huấn luyện.")
+    print("Not enough data to train.")
