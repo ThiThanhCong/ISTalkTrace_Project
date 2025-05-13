@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import time
 from datetime import datetime
 import librosa
-import pywt  # For wavelet transforms
+import pywt  
 
 warnings.filterwarnings('ignore')
 
@@ -22,7 +22,7 @@ class SpeakerIdentification:
         self.n_hmm_components = n_hmm_components
         self.speakers = {}
         self.hmm_models = {}
-        self.save_dir = "wavelet_qcnn_hmm_single"  # Updated directory name
+        self.save_dir = "wavelet_qcnn_hmm_single"  
         self.use_gpu = use_gpu and torch.cuda.is_available()
         
         self.device = torch.device("cuda" if self.use_gpu else "cpu")
@@ -31,9 +31,8 @@ class SpeakerIdentification:
         else:
             print("GPU not available, using CPU instead.")
         
-        # Wavelet parameters
-        self.wavelet = 'db4'  # Daubechies wavelet
-        self.max_level = 5    # Maximum decomposition level
+        self.wavelet = 'db4'  
+        self.max_level = 5    
         
         dev = qml.device("lightning.gpu" if self.use_gpu else "default.qubit", wires=n_qubits)
         @qml.qnode(dev)
@@ -58,68 +57,58 @@ class SpeakerIdentification:
             return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
         
         self.qcnn = qcnn
-        self.weights = np.random.randn(n_qubits * 2 + 1)  # Adjusted weight size for the model
+        self.weights = np.random.randn(n_qubits * 2 + 1)  
 
     def extract_wavelet_features(self, audio_path, start_time, end_time):
         """Extract wavelet features from audio segment"""
         try:
-            # Load audio segment
-            y, sr = librosa.load(audio_path, sr=16000)  # Load at 16kHz
+            y, sr = librosa.load(audio_path, sr=16000)  
             start_sample = int(start_time * sr)
             end_sample = int(end_time * sr)
             
             audio_segment = y[start_sample:end_sample]
             
-            # Ensure minimum length for wavelet decomposition
-            min_length = 2**(self.max_level + 3)  # Ensure enough samples for decomposition
+            min_length = 2**(self.max_level + 3)  
             if len(audio_segment) < min_length:
                 audio_segment = np.pad(audio_segment, (0, min_length - len(audio_segment)))
             
-            # Apply wavelet decomposition
             coeffs = pywt.wavedec(audio_segment, self.wavelet, level=self.max_level)
             
-            # Extract statistical features from each coefficient level
             wavelet_features = []
             
             for coef in coeffs:
-                # Calculate statistics for each coefficient level
                 wavelet_features.extend([
-                    np.mean(coef),          # Mean
-                    np.std(coef),           # Standard deviation
-                    np.max(coef),           # Maximum
-                    np.min(coef),           # Minimum
-                    np.median(coef),        # Median
-                    np.mean(np.abs(coef)),  # Mean absolute value
-                    np.sum(coef**2)         # Energy
+                    np.mean(coef),          
+                    np.std(coef),           
+                    np.max(coef),           
+                    np.min(coef),           
+                    np.median(coef),        
+                    np.mean(np.abs(coef)),  
+                    np.sum(coef**2)         
                 ])
             
             return np.array(wavelet_features)
         except Exception as e:
             print(f"Error extracting wavelet features: {e}")
-            # Return empty array if extraction fails
             return np.array([])
 
     def process_qcnn(self, wavelet_features):
         """Process wavelet features through QCNN"""
         quantum_features = []
         
-        # Ensure we have enough features for n_qubits
         if len(wavelet_features) < self.n_qubits:
             wavelet_features = np.pad(wavelet_features, (0, self.n_qubits - len(wavelet_features)))
         
-        # Use first n_qubits features for quantum circuit
         input_features = wavelet_features[:self.n_qubits]
         
-        # Scale features to appropriate range for quantum circuit
         input_features = np.clip(input_features, -np.pi, np.pi)
         
         q_output = random_qcircuit(input_features, self.n_qubits)
         quantum_features.append(q_output)
         
-        # Combine classical and quantum features
         combined_features = np.concatenate([
-            wavelet_features,  # Original wavelet features
-            np.array(quantum_features).flatten()  # Quantum transformed features
+            wavelet_features,  
+            np.array(quantum_features).flatten()  
         ])
         
         return combined_features.reshape(1, -1)
@@ -132,7 +121,7 @@ class SpeakerIdentification:
         
         for line in lines:
             parts = line.strip().split()
-            if len(parts) >= 3:  # Ensure we have at least start time, end time, and speaker
+            if len(parts) >= 3:  
                 start_time = self.time_to_seconds(parts[0])
                 end_time = self.time_to_seconds(parts[1])
                 speaker = parts[2]
@@ -160,11 +149,9 @@ class SpeakerIdentification:
             
             for audio_path, start, end in segments:
                 
-                # Extract wavelet features
                 wavelet_features = self.extract_wavelet_features(audio_path, start, end)
                 
                 if len(wavelet_features) > 0:
-                    # Process through QCNN
                     q_features = self.process_qcnn(wavelet_features)
                     if q_features.shape[0] > 0:
                         all_features.append(q_features)
@@ -213,7 +200,6 @@ class SpeakerIdentification:
         
         if len(wavelet_features) == 0:
             print(f"⚠️ Failed to extract wavelet features from {test_audio_path} at {start_time}-{end_time}")
-            # Return default prediction if extraction fails
             return list(self.hmm_models.keys())[0] if self.hmm_models else "unknown", {}
         
         test_features = self.process_qcnn(wavelet_features)
@@ -249,7 +235,7 @@ def random_qcircuit(inputs, num_qubits=4):
 
     return circuit(inputs)
 
-def save_model(si, save_dir="wavelet_qcnn_hmm_models"):  # Updated default directory
+def save_model(si, save_dir="wavelet_qcnn_hmm_models"):  
     os.makedirs(save_dir, exist_ok=True)
     
     for speaker, model in si.hmm_models.items():
@@ -267,7 +253,7 @@ def save_model(si, save_dir="wavelet_qcnn_hmm_models"):  # Updated default direc
     
     print(f"✅ Models saved in {save_dir}")
 
-def cross_validate(base_folder, k=3, save_dir="wavelet_crossval_models", log_file="wavelet_crossval_log.txt", use_gpu=True):  # Updated defaults
+def cross_validate(base_folder, k=3, save_dir="wavelet_crossval_models", log_file="wavelet_crossval_log.txt", use_gpu=True):  
     os.makedirs(save_dir, exist_ok=True)
 
     def append_log(lines):
@@ -276,7 +262,7 @@ def cross_validate(base_folder, k=3, save_dir="wavelet_crossval_models", log_fil
                 timestamp = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
                 f.write(f"{timestamp} {line}\n")
 
-    append_log([f"🔁 Cross-Validation Start - {k} folds with Wavelet features\n"])  # Updated log message
+    append_log([f"🔁 Cross-Validation Start - {k} folds with Wavelet features\n"])  
 
     si_base = SpeakerIdentification(use_gpu=use_gpu)
 

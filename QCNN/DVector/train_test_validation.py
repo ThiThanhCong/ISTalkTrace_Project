@@ -31,11 +31,10 @@ print(f"Using device: {device}")
 dev = qml.device("lightning.gpu", wires=N_QUBITS)
 @qml.qnode(dev, interface="torch", diff_method="best")
 def quantum_circuit(inputs, weights):
-    # Ensure inputs have correct dimensions
     assert inputs.shape[1] == N_QUBITS, f"Expected input shape (batch_size, {N_QUBITS}), got {inputs.shape}"
 
     for i in range(N_QUBITS):
-        qml.RY(inputs[:, i], wires=i)  # Run through all batches
+        qml.RY(inputs[:, i], wires=i)
 
     for l in range(N_LAYERS):
         for i in range(N_QUBITS):
@@ -51,7 +50,7 @@ def quantum_circuit(inputs, weights):
 
 
 class DvectorCompressor(nn.Module):
-    def __init__(self, input_dim=192, output_dim=N_QUBITS):  # ECAPA-TDNN embedding size is 192
+    def __init__(self, input_dim=192, output_dim=N_QUBITS):
         super(DvectorCompressor, self).__init__()
         self.compression = nn.Sequential(
             nn.Linear(input_dim, 64),
@@ -82,7 +81,7 @@ class QuantumNeuralNetwork(nn.Module):
         return torch.cat(results, dim=0)
 
 class QDVectorCNN(nn.Module):
-    def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, dvector_dim=192):  # ECAPA-TDNN embedding size
+    def __init__(self, n_qubits=N_QUBITS, n_layers=N_LAYERS, n_classes=2, dvector_dim=192):
         super(QDVectorCNN, self).__init__()
         
         self.compressor = DvectorCompressor(input_dim=dvector_dim, output_dim=N_QUBITS)
@@ -328,7 +327,7 @@ def train_speaker_recognition_system():
         train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, drop_last=True)
         test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, drop_last=True)
         
-        dvector_dim = dvectors_tensor.shape[1]  # Typically 192 for ECAPA-TDNN
+        dvector_dim = dvectors_tensor.shape[1]
         
         qcnn_model = QDVectorCNN(
             n_qubits=N_QUBITS,

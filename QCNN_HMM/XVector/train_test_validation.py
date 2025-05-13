@@ -31,7 +31,6 @@ class SpeakerIdentification:
         else:
             print("GPU not available, using CPU instead.")
         
-        # Load SpeechBrain pretrained x-vector model
         try:
             self.xvector_model = EncoderClassifier.from_hparams(
                 source="speechbrain/spkrec-xvect-voxceleb", 
